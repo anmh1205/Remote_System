@@ -17,20 +17,20 @@ public:
     void updateFromModel();
 
 signals:
-    void applyClicked();
     void saveClicked();
 
 private slots:
-    void onApplyClicked();
     void onSaveClicked();
     void onModelChanged();
 
 private:
     Ui::IpConfigView *ui;
     NetworkConfigModel *m_model;
+    bool m_isCheckingConnection;  // Flag to prevent duplicate connection checks
     
     void setupConnections();
     void updateUI();
+    void checkCameraConnection();
 };
 
 #endif // IPCONFIGVIEW_H

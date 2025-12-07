@@ -18,17 +18,21 @@ public:
     void updateCameraStatus(const QString &status);
     void updatePanTiltStatus(const QString &status);
     void updateJoystickStatus(const QString &status);
+    void appendLog(const QString &message);
+    void clearLog();
 
 signals:
     void upButtonClicked();
     void downButtonClicked();
     void leftButtonClicked();
     void rightButtonClicked();
-    void zoomInButtonClicked();
-    void zoomOutButtonClicked();
+    void zoomValueChanged(int value);
+    void connectCameraClicked();
+    void disconnectCameraClicked();
 
 private:
     Ui::MainControlView *ui;
+    int m_previousZoomValue;
     
     void setupConnections();
     void applyStyles();

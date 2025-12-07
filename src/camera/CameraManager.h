@@ -33,6 +33,7 @@ signals:
     void streamStopped();
     void streamError(const QString &error);
     void streamStatusChanged(bool isActive);
+    void logMessage(const QString &message);  // For logging to MainControlView
 
 private slots:
     void onMediaPlayerStateChanged(QMediaPlayer::PlaybackState state);

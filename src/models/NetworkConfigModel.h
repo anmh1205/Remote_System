@@ -4,6 +4,11 @@
 #include <QObject>
 #include <QString>
 
+enum class CameraProtocol {
+    HTTP,
+    RTSP
+};
+
 class NetworkConfigModel : public QObject
 {
     Q_OBJECT
@@ -13,6 +18,10 @@ class NetworkConfigModel : public QObject
     Q_PROPERTY(QString dnsServer READ dnsServer NOTIFY dnsServerChanged)
     Q_PROPERTY(QString cameraIp READ cameraIp NOTIFY cameraIpChanged)
     Q_PROPERTY(quint16 cameraPort READ cameraPort NOTIFY cameraPortChanged)
+    Q_PROPERTY(int cameraProtocol READ cameraProtocolInt NOTIFY cameraProtocolChanged)
+    Q_PROPERTY(QString cameraRtspPath READ cameraRtspPath NOTIFY cameraRtspPathChanged)
+    Q_PROPERTY(QString cameraUsername READ cameraUsername NOTIFY cameraUsernameChanged)
+    Q_PROPERTY(QString cameraPassword READ cameraPassword NOTIFY cameraPasswordChanged)
     Q_PROPERTY(QString panTiltIp READ panTiltIp NOTIFY panTiltIpChanged)
     Q_PROPERTY(QString joystickIp READ joystickIp NOTIFY joystickIpChanged)
 
@@ -25,6 +34,11 @@ public:
     QString dnsServer() const { return m_dnsServer; }
     QString cameraIp() const { return m_cameraIp; }
     quint16 cameraPort() const { return m_cameraPort; }
+    CameraProtocol cameraProtocol() const { return m_cameraProtocol; }
+    int cameraProtocolInt() const { return static_cast<int>(m_cameraProtocol); }  // For Q_PROPERTY
+    QString cameraRtspPath() const { return m_cameraRtspPath; }
+    QString cameraUsername() const { return m_cameraUsername; }
+    QString cameraPassword() const { return m_cameraPassword; }
     QString panTiltIp() const { return m_panTiltIp; }
     QString joystickIp() const { return m_joystickIp; }
     
@@ -34,6 +48,10 @@ public:
     void setDnsServer(const QString &dns);
     void setCameraIp(const QString &ip);
     void setCameraPort(quint16 port);
+    void setCameraProtocol(int protocol);  // 0 = HTTP, 1 = RTSP
+    void setCameraRtspPath(const QString &path);
+    void setCameraUsername(const QString &username);
+    void setCameraPassword(const QString &password);
     void setPanTiltIp(const QString &ip);
     void setJoystickIp(const QString &ip);
     
@@ -46,6 +64,10 @@ signals:
     void dnsServerChanged(const QString &dns);
     void cameraIpChanged(const QString &ip);
     void cameraPortChanged(quint16 port);
+    void cameraProtocolChanged(int protocol);
+    void cameraRtspPathChanged(const QString &path);
+    void cameraUsernameChanged(const QString &username);
+    void cameraPasswordChanged(const QString &password);
     void panTiltIpChanged(const QString &ip);
     void joystickIpChanged(const QString &ip);
 
@@ -56,6 +78,10 @@ private:
     QString m_dnsServer;
     QString m_cameraIp;
     quint16 m_cameraPort;
+    CameraProtocol m_cameraProtocol;
+    QString m_cameraRtspPath;
+    QString m_cameraUsername;
+    QString m_cameraPassword;
     QString m_panTiltIp;
     QString m_joystickIp;
 };

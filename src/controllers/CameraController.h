@@ -7,6 +7,7 @@
 #include "models/ConnectionStatusModel.h"
 
 class CameraWidget;
+class NetworkConfigModel;
 
 class CameraController : public QObject
 {
@@ -20,6 +21,10 @@ public:
     void setVideoWidget(QVideoWidget *videoWidget);
     void setDeviceConfigModel(DeviceConfigModel *model);
     void setConnectionStatusModel(ConnectionStatusModel *model);
+    void setNetworkConfigModel(NetworkConfigModel *model);
+    
+    void connectCamera();
+    void disconnectCamera();
     
     bool startRtspStream(const QString &url);
     bool startHttpStream(const QString &url);
@@ -31,6 +36,7 @@ public:
 signals:
     void streamStatusChanged(bool isActive);
     void streamError(const QString &error);
+    void logMessage(const QString &message);  // For logging to MainControlView
 
 private slots:
     void onStreamStarted();
@@ -42,8 +48,12 @@ private:
     CameraWidget *m_cameraWidget;
     DeviceConfigModel *m_deviceConfigModel;
     ConnectionStatusModel *m_connectionStatusModel;
+    NetworkConfigModel *m_networkConfigModel;
+    QTimer *m_connectTimer;  // For debouncing connectCamera() calls
     
     void setupConnections();
+    QString buildStreamUrl() const;
+    void scheduleConnectCamera();  // Debounced version of connectCamera
 };
 
 #endif // CAMERACONTROLLER_H

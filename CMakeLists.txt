@@ -63,12 +63,13 @@ set(HEADERS
 
 # UI Files
 set(UI_FILES
-    src/views/MainControlView.ui
-    src/views/WifiInfoView.ui
-    src/views/IpConfigView.ui
+    ui/MainControlView.ui
+    ui/WifiInfoView.ui
+    ui/IpConfigView.ui
 )
 
 # Create executable
+# CMAKE_AUTOUIC will automatically process UI_FILES and generate ui_XXX.h headers
 add_executable(${PROJECT_NAME} 
     ${SOURCES}
     ${HEADERS}
@@ -78,6 +79,12 @@ add_executable(${PROJECT_NAME}
 # Set include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Tell UIC where to find .ui files when processing #include "ui_XXX.h"
+# Since .ui files are in ui/ but .h files are in src/views/, we need to specify the search path
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 )
 
 # Link Qt6 libraries
