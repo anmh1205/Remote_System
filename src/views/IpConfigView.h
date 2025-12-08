@@ -1,37 +1,35 @@
 #ifndef IPCONFIGVIEW_H
 #define IPCONFIGVIEW_H
 
-#include <QWidget>
-#include "ui_IpConfigView.h"
 #include "models/NetworkConfigModel.h"
+#include "ui_IpConfigView.h"
+#include <QWidget>
 
-class IpConfigView : public QWidget
-{
-    Q_OBJECT
+class IpConfigView : public QWidget {
+  Q_OBJECT
 
 public:
-    explicit IpConfigView(QWidget *parent = nullptr);
-    ~IpConfigView();
-    
-    void setModel(NetworkConfigModel *model);
-    void updateFromModel();
+  explicit IpConfigView(QWidget *parent = nullptr);
+  ~IpConfigView();
+
+  void setModel(NetworkConfigModel *model);
+  void updateFromModel();
 
 signals:
-    void saveClicked();
+  void saveClicked();
 
 private slots:
-    void onSaveClicked();
-    void onModelChanged();
+  void onSaveClicked();
+  void onModelChanged();
+  void onQuickUrlEntered();
 
 private:
-    Ui::IpConfigView *ui;
-    NetworkConfigModel *m_model;
-    bool m_isCheckingConnection;  // Flag to prevent duplicate connection checks
-    
-    void setupConnections();
-    void updateUI();
-    void checkCameraConnection();
+  Ui::IpConfigView *ui;
+  NetworkConfigModel *m_model;
+
+  void setupConnections();
+  void updateUI();
+  void parseQuickUrl(const QString &url);
 };
 
 #endif // IPCONFIGVIEW_H
-

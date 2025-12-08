@@ -11,6 +11,9 @@
 #include "views/MainControlView.h"
 #include "views/WifiInfoView.h"
 #include <QDebug>
+#include <QDir>
+#include <QMessageBox>
+#include <QStandardPaths>
 
 /**
  * @brief MainController constructor - Initializes the core application logic
@@ -104,6 +107,7 @@ void MainController::setupModels() {
   // NetworkConfigModel: Manages IP addresses and ports for all devices
   // Constructor automatically calls updateLocalNetworkInfo() to detect local IP
   m_networkConfigModel = new NetworkConfigModel(this);
+  m_networkConfigModel->loadFromFile(networkConfigFilePath());
 
   // DeviceConfigModel: Manages camera type (RTSP/HTTP/Iriun) and ESP32
   // configurations
@@ -217,6 +221,14 @@ void MainController::connectViews() {
   // ============================================================
   MainControlView *mainView = m_mainWindow->mainControlView();
   if (mainView) {
+    // Set camera IP for zoom control
+    if (m_networkConfigModel) {
+      mainView->setCameraIp(m_networkConfigModel->cameraIp());
+      // Update camera IP when it changes
+      connect(m_networkConfigModel, &NetworkConfigModel::cameraIpChanged,
+              mainView, &MainControlView::setCameraIp);
+    }
+    
     // Set camera widget for CameraController
     // This allows CameraManager to display video stream in the widget
     m_cameraController->setCameraWidget(mainView->cameraWidget());
@@ -252,26 +264,9 @@ void MainController::connectViews() {
       m_networkController->sendPanTiltCommand(cmd);
     });
 
-    // Zoom slider: Send zoom commands based on slider value change
-    // When slider value increases → Zoom In, decreases → Zoom Out
-    connect(mainView, &MainControlView::zoomValueChanged,
-            [this, mainView](int value) {
-              // Get previous value from the view (stored in
-              // m_previousZoomValue) Compare to determine zoom direction
-              if (value > 50) {
-                // Zoom In (value > 50)
-                QByteArray cmd = m_deviceController->createPanTiltCommand(
-                    PanTiltCommand::ZoomIn);
-                m_networkController->sendPanTiltCommand(cmd);
-              } else if (value < 50) {
-                // Zoom Out (value < 50)
-                QByteArray cmd = m_deviceController->createPanTiltCommand(
-                    PanTiltCommand::ZoomOut);
-                m_networkController->sendPanTiltCommand(cmd);
-              }
-              // Note: When value == 50, no zoom command is sent (neutral
-              // position)
-            });
+    // Zoom slider: Now handled directly in MainControlView via HTTP requests
+    // The zoomValueChanged signal is still emitted for compatibility,
+    // but HTTP requests are sent continuously while dragging
 
     // Connect status update signals from ConnectionStatusModel to
     // MainControlView When connection state changes, update the status labels
@@ -331,7 +326,20 @@ void MainController::connectViews() {
     // (cameraIpChanged/cameraPortChanged → connectCamera)
     // When Apply/Save is clicked, properties are already updated in model
     // CameraController will automatically reconnect via signal connections
-    // No need to manually call connectCamera here
+    connect(ipView, &IpConfigView::saveClicked, this, [this, ipView]() {
+      if (!m_networkConfigModel) {
+        return;
+      }
+      QString path = networkConfigFilePath();
+      if (!m_networkConfigModel->saveToFile(path)) {
+        qWarning() << "MainController: failed to save network config to"
+                   << path;
+      } else {
+        qDebug() << "MainController: network config saved to" << path;
+        QMessageBox::information(ipView, "Saved",
+                                 "Network configuration has been saved.");
+      }
+    });
   }
 
   // ============================================================
@@ -363,4 +371,14 @@ void MainController::connectViews() {
     connect(mainView, &MainControlView::disconnectCameraClicked,
             m_cameraController, &CameraController::disconnectCamera);
   }
+}
+
+QString MainController::networkConfigFilePath() const {
+  QString dir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  if (dir.isEmpty()) {
+    dir = QDir::currentPath();
+  }
+  QDir().mkpath(dir);
+  return QDir(dir).filePath("network_config.json");
 }

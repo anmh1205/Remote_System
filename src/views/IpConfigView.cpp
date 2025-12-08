@@ -1,20 +1,15 @@
 #include "IpConfigView.h"
 #include "models/NetworkConfigModel.h"
 #include "network/NetworkUtils.h"
-#include <QApplication>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QTimer>
+#include <QUrl>
 
 IpConfigView::IpConfigView(QWidget *parent)
-    : QWidget(parent), ui(new Ui::IpConfigView), m_model(nullptr),
-      m_isCheckingConnection(false) {
+    : QWidget(parent), ui(new Ui::IpConfigView), m_model(nullptr) {
   ui->setupUi(this);
   setupConnections();
 }
@@ -24,6 +19,12 @@ IpConfigView::~IpConfigView() { delete ui; }
 void IpConfigView::setupConnections() {
   connect(ui->btnSave, &QPushButton::clicked, this,
           &IpConfigView::onSaveClicked);
+
+  // Connect quick URL input
+  connect(ui->editQuickUrl, &QLineEdit::editingFinished, this,
+          &IpConfigView::onQuickUrlEntered);
+  connect(ui->editQuickUrl, &QLineEdit::returnPressed, this,
+          &IpConfigView::onQuickUrlEntered);
 }
 
 void IpConfigView::setModel(NetworkConfigModel *model) {
@@ -94,8 +95,6 @@ void IpConfigView::updateUI() {
 }
 
 void IpConfigView::onSaveClicked() {
-  // Apply first (which includes connection check)
-  // But don't emit applyClicked signal to avoid duplicate calls
   if (!m_model) {
     return;
   }
@@ -134,6 +133,10 @@ void IpConfigView::onSaveClicked() {
     return;
   }
 
+  // Block signals to prevent multiple connectCamera() calls when updating
+  // multiple properties at once
+  m_model->blockSignals(true);
+
   // Update model (same as onApplyClicked)
   m_model->setCameraProtocol(cameraProtocol);
   m_model->setCameraIp(cameraIp);
@@ -144,188 +147,88 @@ void IpConfigView::onSaveClicked() {
   m_model->setPanTiltIp(panTiltIp);
   m_model->setJoystickIp(joystickIp);
 
-  // Check connection and show result (same as onApplyClicked)
-  checkCameraConnection();
+  // Unblock signals after batch update
+  m_model->blockSignals(false);
 
-  // Then save (emit signal for persistence if needed)
+  // Emit save for persistence
   emit saveClicked();
 }
 
-void IpConfigView::checkCameraConnection() {
-  // Prevent duplicate connection checks
-  if (m_isCheckingConnection) {
+void IpConfigView::onQuickUrlEntered() {
+  QString url = ui->editQuickUrl->text().trimmed();
+  if (!url.isEmpty()) {
+    parseQuickUrl(url);
+  }
+}
+
+void IpConfigView::parseQuickUrl(const QString &url) {
+  QUrl qurl(url);
+
+  if (!qurl.isValid() || qurl.scheme().isEmpty()) {
+    QMessageBox::warning(this, "Invalid URL",
+                         QString("Invalid URL format: %1").arg(url));
     return;
   }
 
-  if (!m_model) {
-    return;
-  }
+  QString scheme = qurl.scheme().toLower();
+  QString host = qurl.host();
+  int port = qurl.port();
+  QString path = qurl.path();
+  QString username = qurl.userName();
+  QString password = qurl.password();
 
-  m_isCheckingConnection = true;
-
-  QString cameraIp = m_model->cameraIp();
-  quint16 cameraPort = m_model->cameraPort();
-
-  if (cameraIp.isEmpty() || cameraPort == 0) {
-    m_isCheckingConnection = false;
-    QMessageBox::warning(
-        this, "Connection Check",
-        "Cannot check connection: Camera IP or port is not set.");
-    return;
-  }
-
-  // Build test URL - MUST match CameraController::buildStreamUrl() logic
-  // Use the same values that CameraController will use (from model)
-  CameraProtocol protocol = m_model->cameraProtocol();
-  QString protocolStr = (protocol == CameraProtocol::HTTP) ? "http" : "rtsp";
-  QString path = m_model->cameraRtspPath(); // Already normalized by model
-                                            // (starts with / if not empty)
-  QString username = m_model->cameraUsername();
-  QString password = m_model->cameraPassword();
-
-  // Build URL with optional authentication (same logic as
-  // CameraController::buildStreamUrl)
-  QString testUrl;
-  if (!username.isEmpty() && !password.isEmpty()) {
-    // URL encode username and password to handle special characters
-    QString encodedUsername = QUrl::toPercentEncoding(username);
-    QString encodedPassword = QUrl::toPercentEncoding(password);
-    if (path.isEmpty()) {
-      testUrl =
-          QString("%1://%2:%3@%4:%5")
-              .arg(protocolStr, encodedUsername, encodedPassword, cameraIp)
-              .arg(cameraPort);
-    } else {
-      testUrl =
-          QString("%1://%2:%3@%4:%5%6")
-              .arg(protocolStr, encodedUsername, encodedPassword, cameraIp)
-              .arg(cameraPort)
-              .arg(path);
-    }
+  // Determine protocol
+  if (scheme == "http" || scheme == "https") {
+    ui->comboCameraProtocol->setCurrentIndex(0); // HTTP
+  } else if (scheme == "rtsp") {
+    ui->comboCameraProtocol->setCurrentIndex(1); // RTSP
   } else {
-    if (path.isEmpty()) {
-      testUrl =
-          QString("%1://%2:%3").arg(protocolStr, cameraIp).arg(cameraPort);
-    } else {
-      testUrl = QString("%1://%2:%3%4")
-                    .arg(protocolStr, cameraIp)
-                    .arg(cameraPort)
-                    .arg(path);
-    }
+    QMessageBox::warning(this, "Unsupported Protocol",
+                         QString("Unsupported protocol: %1\n"
+                                 "Supported protocols: http, https, rtsp")
+                             .arg(scheme));
+    return;
   }
 
-  // Use QNetworkAccessManager to test HTTP connection
-  if (protocol == CameraProtocol::HTTP) {
-    // Create checking dialog as pointer so it can be properly closed
-    QMessageBox *msgBox = new QMessageBox(this);
-    msgBox->setWindowTitle("Checking Connection");
-    msgBox->setText(QString("Testing connection to %1...").arg(testUrl));
-    msgBox->setStandardButtons(QMessageBox::NoButton);
-    msgBox->setIcon(QMessageBox::Information);
-    msgBox->setModal(true);
+  // Set IP
+  if (!host.isEmpty()) {
+    ui->editCameraIp->setText(host);
+  }
 
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QNetworkRequest request = QNetworkRequest(QUrl(testUrl));
-    request.setRawHeader("User-Agent", "RemoteSystem/1.0");
-
-    // If username/password are provided, also set authentication header
-    if (!username.isEmpty() && !password.isEmpty()) {
-      QString concatenated = username + ":" + password;
-      QByteArray data = concatenated.toLocal8Bit().toBase64();
-      QString headerData = "Basic " + data;
-      request.setRawHeader("Authorization", headerData.toLocal8Bit());
-    }
-
-    // Set timeout
-    QTimer *timeoutTimer = new QTimer(this);
-    timeoutTimer->setSingleShot(true);
-    timeoutTimer->setInterval(5000); // 5 seconds timeout
-
-    // Show checking dialog
-    msgBox->show();
-    QApplication::processEvents(); // Process events to show the dialog
-
-    QNetworkReply *reply = manager->get(request);
-
-    // Connect timeout
-    connect(timeoutTimer, &QTimer::timeout,
-            [msgBox, reply, timeoutTimer, manager, testUrl, this]() {
-              timeoutTimer->stop();
-              reply->abort();
-
-              // Close checking dialog first
-              if (msgBox) {
-                msgBox->close();
-                msgBox->deleteLater();
-              }
-
-              // Then show error
-              QMessageBox::warning(
-                  this, "Connection Failed",
-                  QString("Connection timeout to %1\n\nPlease check:\n"
-                          "- Camera IP and port are correct\n"
-                          "- Camera is powered on and connected to network\n"
-                          "- Stream path is correct (if required)\n"
-                          "- Username/password are correct (if required)\n"
-                          "- Firewall is not blocking the connection")
-                      .arg(testUrl));
-
-              // Reset flag after connection check is complete
-              m_isCheckingConnection = false;
-
-              reply->deleteLater();
-              timeoutTimer->deleteLater();
-              manager->deleteLater();
-            });
-
-    // Connect reply
-    connect(reply, &QNetworkReply::finished,
-            [msgBox, reply, timeoutTimer, manager, testUrl, this]() {
-              timeoutTimer->stop();
-
-              // Close checking dialog first
-              if (msgBox) {
-                msgBox->close();
-                msgBox->deleteLater();
-              }
-
-              // Then show result
-              if (reply->error() == QNetworkReply::NoError) {
-                QMessageBox::information(
-                    this, "Connection Success",
-                    QString("Successfully connected to camera at %1\n\n"
-                            "Configuration applied successfully.")
-                        .arg(testUrl));
-              } else {
-                QMessageBox::warning(
-                    this, "Connection Failed",
-                    QString("Cannot connect to camera at %1\n\nError: "
-                            "%2\n\nPlease check:\n"
-                            "- Camera IP and port are correct\n"
-                            "- Camera is powered on and connected to network\n"
-                            "- Stream path is correct (if required)\n"
-                            "- Username/password are correct (if required)\n"
-                            "- Firewall is not blocking the connection")
-                        .arg(testUrl, reply->errorString()));
-              }
-
-              // Reset flag after connection check is complete
-              m_isCheckingConnection = false;
-
-              reply->deleteLater();
-              timeoutTimer->deleteLater();
-              manager->deleteLater();
-            });
-
-    timeoutTimer->start();
+  // Set port (use default if not specified)
+  if (port > 0) {
+    ui->spinCameraPort->setValue(port);
   } else {
-    // For RTSP, just show info that connection will be attempted
-    QMessageBox::information(this, "Configuration Applied",
-                             QString("RTSP configuration applied. Connection "
-                                     "will be attempted automatically.\n\n"
-                                     "URL: %1")
-                                 .arg(testUrl));
-    // Reset flag after connection check is complete
-    m_isCheckingConnection = false;
+    // Use default port based on protocol
+    if (scheme == "rtsp") {
+      ui->spinCameraPort->setValue(554); // RTSP default
+    } else {
+      ui->spinCameraPort->setValue(8080); // HTTP default
+    }
   }
+
+  // Set path
+  if (!path.isEmpty()) {
+    ui->editCameraRtspPath->setText(path);
+  } else {
+    ui->editCameraRtspPath->clear();
+  }
+
+  // Set username and password
+  if (!username.isEmpty()) {
+    ui->editCameraUsername->setText(
+        QUrl::fromPercentEncoding(username.toUtf8()));
+  } else {
+    ui->editCameraUsername->clear();
+  }
+
+  if (!password.isEmpty()) {
+    ui->editCameraPassword->setText(
+        QUrl::fromPercentEncoding(password.toUtf8()));
+  } else {
+    ui->editCameraPassword->clear();
+  }
+
+  // Clear quick URL field after parsing
+  ui->editQuickUrl->clear();
 }

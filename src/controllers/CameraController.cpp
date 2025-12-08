@@ -3,9 +3,8 @@
 #include "models/ConnectionStatusModel.h"
 #include "models/DeviceConfigModel.h"
 #include "models/NetworkConfigModel.h"
-#include "network/NetworkUtils.h"
 #include "views/CameraWidget.h"
-#include <QDebug>
+#include <QLabel>
 #include <QTimer>
 #include <QUrl>
 
@@ -18,7 +17,7 @@ CameraController::CameraController(QObject *parent)
   // Create debounce timer for connectCamera calls
   m_connectTimer = new QTimer(this);
   m_connectTimer->setSingleShot(true);
-  m_connectTimer->setInterval(500); // 500ms debounce
+  m_connectTimer->setInterval(300); // 300ms debounce
   connect(m_connectTimer, &QTimer::timeout, this,
           &CameraController::connectCamera);
 
@@ -35,7 +34,6 @@ void CameraController::setupConnections() {
             &CameraController::onStreamStopped);
     connect(m_cameraManager, &CameraManager::streamError, this,
             &CameraController::onStreamError);
-    // Forward log messages from CameraManager to CameraController
     connect(m_cameraManager, &CameraManager::logMessage, this,
             &CameraController::logMessage);
   }
@@ -44,12 +42,16 @@ void CameraController::setupConnections() {
 void CameraController::setCameraWidget(CameraWidget *widget) {
   m_cameraWidget = widget;
   if (m_cameraWidget && m_cameraManager) {
-    // Use QVideoWidget if available, otherwise use videoSink
+    // Set QVideoWidget for RTSP streams
     QVideoWidget *videoWidget = m_cameraWidget->videoWidget();
     if (videoWidget) {
       m_cameraManager->setVideoOutput(videoWidget);
-    } else {
-      m_cameraManager->setVideoOutput(m_cameraWidget->videoSink());
+    }
+
+    // Set QLabel for MJPEG streams
+    QLabel *mjpegLabel = m_cameraWidget->mjpegLabel();
+    if (mjpegLabel) {
+      m_cameraManager->setMjpegOutput(mjpegLabel);
     }
   }
 }
@@ -76,26 +78,24 @@ void CameraController::setNetworkConfigModel(NetworkConfigModel *model) {
   m_networkConfigModel = model;
 
   if (m_networkConfigModel) {
-    // Auto-connect camera when IP, port, protocol, path, username, or password
-    // changes
+    // Auto-connect camera when configuration changes (debounced)
     connect(m_networkConfigModel, &NetworkConfigModel::cameraIpChanged, this,
-            &CameraController::connectCamera);
+            &CameraController::scheduleConnectCamera);
     connect(m_networkConfigModel, &NetworkConfigModel::cameraPortChanged, this,
-            &CameraController::connectCamera);
+            &CameraController::scheduleConnectCamera);
     connect(m_networkConfigModel, &NetworkConfigModel::cameraProtocolChanged,
-            this, &CameraController::connectCamera);
+            this, &CameraController::scheduleConnectCamera);
     connect(m_networkConfigModel, &NetworkConfigModel::cameraRtspPathChanged,
-            this, &CameraController::connectCamera);
+            this, &CameraController::scheduleConnectCamera);
     connect(m_networkConfigModel, &NetworkConfigModel::cameraUsernameChanged,
-            this, &CameraController::connectCamera);
+            this, &CameraController::scheduleConnectCamera);
     connect(m_networkConfigModel, &NetworkConfigModel::cameraPasswordChanged,
-            this, &CameraController::connectCamera);
+            this, &CameraController::scheduleConnectCamera);
   }
 }
 
 QString CameraController::buildStreamUrl() const {
   if (!m_networkConfigModel) {
-    qDebug() << "CameraController::buildStreamUrl: NetworkConfigModel is null";
     return QString();
   }
 
@@ -105,9 +105,6 @@ QString CameraController::buildStreamUrl() const {
   QString path = m_networkConfigModel->cameraRtspPath();
   QString username = m_networkConfigModel->cameraUsername();
   QString password = m_networkConfigModel->cameraPassword();
-
-  // Note: Cannot emit logMessage here because this is a const method
-  // Logging will be done in connectCamera() instead
 
   if (ip.isEmpty() || port == 0) {
     return QString();
@@ -119,7 +116,7 @@ QString CameraController::buildStreamUrl() const {
   QString streamUrl;
 
   if (!username.isEmpty() && !password.isEmpty()) {
-    // URL encode username and password to handle special characters
+    // URL encode username and password
     QString encodedUsername = QUrl::toPercentEncoding(username);
     QString encodedPassword = QUrl::toPercentEncoding(password);
     if (path.isEmpty()) {
@@ -145,22 +142,15 @@ QString CameraController::buildStreamUrl() const {
 }
 
 void CameraController::connectCamera() {
-  // Stop any pending debounce timer
-  if (m_connectTimer && m_connectTimer->isActive()) {
-    m_connectTimer->stop();
-  }
-
   if (!m_networkConfigModel) {
-    emit logMessage(
-        "CameraController::connectCamera: NetworkConfigModel is null");
+    emit logMessage("CameraController: NetworkConfigModel is null");
     return;
   }
 
   QString streamUrl = buildStreamUrl();
 
   if (streamUrl.isEmpty()) {
-    emit logMessage(
-        "CameraController::connectCamera: Cannot connect - IP or port not set");
+    emit logMessage("CameraController: Cannot connect - IP or port not set");
     if (m_connectionStatusModel) {
       m_connectionStatusModel->setCameraState(ConnectionState::Disconnected);
     }
@@ -168,51 +158,26 @@ void CameraController::connectCamera() {
   }
 
   CameraProtocol protocol = m_networkConfigModel->cameraProtocol();
-  bool success = false;
+  QString username = m_networkConfigModel->cameraUsername();
+  QString password = m_networkConfigModel->cameraPassword();
 
-  emit logMessage("CameraController::connectCamera: Attempting to connect");
+  emit logMessage(QString("CameraController: Connecting to %1").arg(streamUrl));
   emit logMessage(QString("  Protocol: %1")
                       .arg(protocol == CameraProtocol::HTTP ? "HTTP" : "RTSP"));
-  emit logMessage(QString("  URL: %1").arg(streamUrl));
-  emit logMessage(QString("  IP: %1").arg(m_networkConfigModel->cameraIp()));
-  emit logMessage(
-      QString("  Port: %1").arg(m_networkConfigModel->cameraPort()));
-  emit logMessage(
-      QString("  Path: %1").arg(m_networkConfigModel->cameraRtspPath()));
-  emit logMessage(QString("  Username: %1")
-                      .arg(m_networkConfigModel->cameraUsername().isEmpty()
-                               ? "none"
-                               : "***"));
 
-  // Log URL building details
-  emit logMessage(QString("CameraController::buildStreamUrl: Protocol = %1, IP "
-                          "= %2, Port = %3, Path = %4, Username = %5")
-                      .arg(protocol == CameraProtocol::HTTP ? "HTTP" : "RTSP")
-                      .arg(m_networkConfigModel->cameraIp())
-                      .arg(m_networkConfigModel->cameraPort())
-                      .arg(m_networkConfigModel->cameraRtspPath())
-                      .arg(m_networkConfigModel->cameraUsername().isEmpty()
-                               ? "none"
-                               : "***"));
-  emit logMessage(QString("CameraController::buildStreamUrl: Built URL = %1")
-                      .arg(streamUrl));
+  bool success = false;
 
   if (protocol == CameraProtocol::HTTP) {
-    emit logMessage("CameraController::connectCamera: Starting HTTP stream");
     success = startHttpStream(streamUrl);
   } else {
-    emit logMessage("CameraController::connectCamera: Starting RTSP stream");
     success = startRtspStream(streamUrl);
   }
 
   if (!success) {
-    emit logMessage("CameraController::connectCamera: Failed to start stream");
+    emit logMessage("CameraController: Failed to start stream");
     if (m_connectionStatusModel) {
       m_connectionStatusModel->setCameraState(ConnectionState::Error);
     }
-  } else {
-    emit logMessage("CameraController::connectCamera: Stream start command "
-                    "sent successfully");
   }
 }
 
@@ -236,7 +201,15 @@ bool CameraController::startHttpStream(const QString &url) {
     return false;
   }
 
-  bool success = m_cameraManager->startHttpStream(url);
+  QString username;
+  QString password;
+
+  if (m_networkConfigModel) {
+    username = m_networkConfigModel->cameraUsername();
+    password = m_networkConfigModel->cameraPassword();
+  }
+
+  bool success = m_cameraManager->startHttpStream(url, username, password);
   if (success && m_deviceConfigModel) {
     m_deviceConfigModel->setHttpUrl(url);
     m_deviceConfigModel->setCameraType(CameraType::HTTP);
@@ -268,14 +241,23 @@ void CameraController::stopStream() {
 }
 
 void CameraController::scanIriunCameras() {
-  // Placeholder: Iriun camera scanning
-  // Will use NetworkUtils to discover Iriun cameras
-  NetworkUtils *utils = new NetworkUtils(this);
-  utils->startIriunDiscovery();
+  emit logMessage(
+      "CameraController: Iriun camera scanning not yet implemented");
 }
 
 void CameraController::onStreamStarted() {
-  qDebug() << "CameraController: Stream started successfully";
+  emit logMessage("CameraController: Stream started successfully");
+
+  // Update CameraWidget display based on stream type
+  if (m_cameraWidget && m_cameraManager) {
+    CameraType type = m_cameraManager->currentCameraType();
+    if (type == CameraType::HTTP) {
+      m_cameraWidget->showMjpegLabel();
+    } else if (type == CameraType::RTSP) {
+      m_cameraWidget->showVideoWidget();
+    }
+  }
+
   if (m_connectionStatusModel) {
     m_connectionStatusModel->setCameraState(ConnectionState::Connected);
   }
@@ -283,6 +265,11 @@ void CameraController::onStreamStarted() {
 }
 
 void CameraController::onStreamStopped() {
+  // Show placeholder when stream stops
+  if (m_cameraWidget) {
+    m_cameraWidget->showPlaceholder();
+  }
+
   if (m_connectionStatusModel) {
     m_connectionStatusModel->setCameraState(ConnectionState::Disconnected);
   }
@@ -290,7 +277,7 @@ void CameraController::onStreamStopped() {
 }
 
 void CameraController::onStreamError(const QString &error) {
-  qDebug() << "CameraController: Stream error:" << error;
+  emit logMessage(QString("CameraController: Stream error: %1").arg(error));
   if (m_connectionStatusModel) {
     m_connectionStatusModel->setCameraState(ConnectionState::Error);
   }
@@ -299,10 +286,10 @@ void CameraController::onStreamError(const QString &error) {
 
 void CameraController::scheduleConnectCamera() {
   // Stop any pending timer
-  if (m_connectTimer) {
+  if (m_connectTimer && m_connectTimer->isActive()) {
     m_connectTimer->stop();
   }
-  // Restart timer - this will call connectCamera() after 500ms of no changes
+  // Restart timer - this will call connectCamera() after 300ms of no changes
   if (m_connectTimer) {
     m_connectTimer->start();
   }

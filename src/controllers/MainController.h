@@ -41,6 +41,7 @@ private:
     void setupModels();
     void connectSignals();
     void connectViews();
+    QString networkConfigFilePath() const;
 };
 
 #endif // MAINCONTROLLER_H

@@ -85,13 +85,27 @@
      </property>
      <layout class="QFormLayout" name="formDevices">
       <item row="0" column="0">
+       <widget class="QLabel" name="lblQuickUrl">
+        <property name="text">
+         <string>Quick URL:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="editQuickUrl">
+        <property name="placeholderText">
+         <string>Enter full URL (e.g. http://192.168.100.40:8080/video or rtsp://192.168.100.40:8080/h264.dp)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
        <widget class="QLabel" name="lblCameraProtocol">
         <property name="text">
          <string>Camera Protocol:</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
+      <item row="1" column="1">
        <widget class="QComboBox" name="comboCameraProtocol">
         <item>
          <property name="text">
@@ -105,89 +119,24 @@
         </item>
        </widget>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="lblCameraIp">
         <property name="text">
          <string>Camera IP:</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="QLineEdit" name="editCameraIp"/>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="lblCameraPort">
         <property name="text">
          <string>Camera Port:</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="lblCameraUsername">
-        <property name="text">
-         <string>Camera Username:</string>
-        </property>
-       </widget>
-      </item>
       <item row="3" column="1">
-       <widget class="QLineEdit" name="editCameraUsername">
-        <property name="placeholderText">
-         <string>Optional - leave empty if no auth</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="lblCameraPassword">
-        <property name="text">
-         <string>Camera Password:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QLineEdit" name="editCameraPassword">
-        <property name="echoMode">
-         <enum>QLineEdit::EchoMode::Password</enum>
-        </property>
-        <property name="placeholderText">
-         <string>Optional - leave empty if no auth</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="lblCameraRtspPath">
-        <property name="text">
-         <string>Stream Path:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
-       <widget class="QLineEdit" name="editCameraRtspPath">
-        <property name="placeholderText">
-         <string>Optional - e.g. /video, /mjpeg, /stream, etc.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="lblPanTiltIp">
-        <property name="text">
-         <string>Pan/Tilt IP:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1">
-       <widget class="QLineEdit" name="editPanTiltIp"/>
-      </item>
-      <item row="7" column="0">
-       <widget class="QLabel" name="lblJoystickIp">
-        <property name="text">
-         <string>Joystick IP:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="1">
-       <widget class="QLineEdit" name="editJoystickIp"/>
-      </item>
-      <item row="2" column="1">
        <widget class="QSpinBox" name="spinCameraPort">
         <property name="minimum">
          <number>1</number>
@@ -199,6 +148,71 @@
          <number>8080</number>
         </property>
        </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="lblCameraUsername">
+        <property name="text">
+         <string>Camera Username:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="editCameraUsername">
+        <property name="placeholderText">
+         <string>Optional - leave empty if no auth</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="lblCameraPassword">
+        <property name="text">
+         <string>Camera Password:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QLineEdit" name="editCameraPassword">
+        <property name="echoMode">
+         <enum>QLineEdit::EchoMode::Password</enum>
+        </property>
+        <property name="placeholderText">
+         <string>Optional - leave empty if no auth</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="lblCameraRtspPath">
+        <property name="text">
+         <string>Stream Path:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLineEdit" name="editCameraRtspPath">
+        <property name="placeholderText">
+         <string>Optional - e.g. /video, /mjpeg, /stream, etc.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="lblPanTiltIp">
+        <property name="text">
+         <string>Pan/Tilt IP:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QLineEdit" name="editPanTiltIp"/>
+      </item>
+      <item row="8" column="0">
+       <widget class="QLabel" name="lblJoystickIp">
+        <property name="text">
+         <string>Joystick IP:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
+       <widget class="QLineEdit" name="editJoystickIp"/>
       </item>
      </layout>
     </widget>

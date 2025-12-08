@@ -2,6 +2,9 @@
 #define MAINCONTROLVIEW_H
 
 #include <QWidget>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QTimer>
 #include "ui_MainControlView.h"
 #include "CameraWidget.h"
 
@@ -20,6 +23,7 @@ public:
     void updateJoystickStatus(const QString &status);
     void appendLog(const QString &message);
     void clearLog();
+    void setCameraIp(const QString &ip);
 
 signals:
     void upButtonClicked();
@@ -30,9 +34,20 @@ signals:
     void connectCameraClicked();
     void disconnectCameraClicked();
 
+private slots:
+    void onZoomSliderPressed();
+    void onZoomSliderReleased();
+    void onZoomSliderMoved(int value);
+    void sendZoomRequest();
+
 private:
     Ui::MainControlView *ui;
     int m_previousZoomValue;
+    QNetworkAccessManager *m_networkManager;
+    QTimer *m_zoomRequestTimer;
+    QString m_cameraIp;
+    int m_currentZoomValue;
+    bool m_isDragging;
     
     void setupConnections();
     void applyStyles();

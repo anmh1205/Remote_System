@@ -38,6 +38,7 @@ set(SOURCES
     src/network/TcpClient.cpp
     src/network/NetworkUtils.cpp
     src/camera/CameraManager.cpp
+    src/camera/MjpegStreamHandler.cpp
 )
 
 # Headers
@@ -59,6 +60,7 @@ set(HEADERS
     src/network/TcpClient.h
     src/network/NetworkUtils.h
     src/camera/CameraManager.h
+    src/camera/MjpegStreamHandler.h
 )
 
 # UI Files

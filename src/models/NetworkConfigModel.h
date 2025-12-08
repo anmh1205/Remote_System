@@ -56,6 +56,8 @@ public:
     void setJoystickIp(const QString &ip);
     
     void updateLocalNetworkInfo();
+    bool loadFromFile(const QString &filePath);
+    bool saveToFile(const QString &filePath) const;
 
 signals:
     void localIpChanged(const QString &ip);
